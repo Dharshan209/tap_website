@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '../ui/button';
 import { ArrowRight, Sparkles, BookOpen, Palette } from 'lucide-react';
+import AnimatedBook from './AnimatedBook';
 
 const Hero = () => {
   return (
@@ -129,62 +130,14 @@ const Hero = () => {
             </motion.div>
           </div>
           
-          {/* Image/3D Book Display */}
+          {/* Animated Book Display */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.7, delay: 0.2 }}
             className="relative flex justify-center lg:justify-end"
           >
-            <div className="relative w-full max-w-lg md:max-w-xl lg:max-w-2xl perspective">
-              {/* Main book mockup */}
-              <div className="relative z-10 transform-3d rotate-y-6 rotate-x-12 shadow-2xl rounded-xl overflow-hidden border border-border/40">
-                <div className="aspect-[5/4] w-full bg-card overflow-hidden">
-                  <div className="h-full w-full relative bg-gradient-to-r from-primary/10 to-accent/10 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-shine bg-[length:200%_100%] animate-background-shine opacity-50"></div>
-                    <img 
-                      src="/assets/images/hero-book-cover.jpg" 
-                      alt="Children's storybook created from artwork" 
-                      className="w-full h-full object-cover relative z-10 transition-opacity duration-500"
-                      loading="eager"
-                      onLoad={(e) => {
-                        e.target.classList.add('opacity-100');
-                      }}
-                      onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/800x640?text=TAP+Book+Example';
-                        e.target.classList.add('opacity-100');
-                      }}
-                      style={{ opacity: 0 }}
-                    />
-                  </div>
-                </div>
-                
-                {/* Book spine effect */}
-                <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-black/20 to-transparent"></div>
-                <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-l from-black/20 to-transparent"></div>
-              </div>
-              
-              {/* Decorative elements */}
-              <div className="absolute -right-8 -top-8 z-20 w-24 h-24 glass-effect rounded-xl rotate-12 flex items-center justify-center shadow-lg animate-float" style={{ animationDelay: '1s' }}>
-                <img 
-                  src="/assets/images/child-art-sample.jpg"
-                  alt="Child's artwork" 
-                  className="w-16 h-16 object-cover rounded-lg" 
-                  loading="eager"
-                  onError={(e) => {
-                    e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYwIiBoZWlnaHQ9IjE2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJoc2woMjUyLDk1JSw1OCUpIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMjAiIGZpbGw9IiNmZmYiPkFydDwvdGV4dD48L3N2Zz4=';
-                  }}
-                />
-              </div>
-              
-              <div className="absolute -left-8 bottom-4 z-20 w-32 h-16 glass-effect rounded-xl -rotate-12 flex items-center justify-center shadow-lg animate-float" style={{ animationDelay: '0.5s' }}>
-                <span className="font-medium text-lg bg-gradient-highlight bg-clip-text text-transparent">Magic!</span>
-              </div>
-              
-              {/* Stacked books illusion */}
-              <div className="absolute inset-x-10 -bottom-6 h-6 rounded-b-xl bg-gradient-to-r from-primary/40 to-accent/40 blur-sm -z-10"></div>
-              <div className="absolute inset-x-14 -bottom-10 h-6 rounded-b-xl bg-gradient-to-r from-primary/20 to-accent/20 blur-md -z-20"></div>
-            </div>
+            <AnimatedBook />
           </motion.div>
         </div>
       </div>

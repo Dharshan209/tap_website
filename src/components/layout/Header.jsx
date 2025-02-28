@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../ui/theme-provider';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { Menu, X, Sun, Moon, ShoppingCart, User, ChevronDown, LogOut, ShoppingBag, Settings, Crown } from 'lucide-react';
-import CartDrawer from '../cart/CartDrawer';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 
@@ -14,10 +13,10 @@ const Header = () => {
   const { cartItems, cartTotal, isCartEmpty } = useCart();
   const { user, logout, isAdmin } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const userMenuRef = useRef(null);
+  const navigate = useNavigate();
 
   // Handle scrolling effect
   useEffect(() => {
@@ -30,7 +29,7 @@ const Header = () => {
   }, []);
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-  const toggleCart = () => setIsCartOpen(!isCartOpen);
+  const goToCart = () => navigate('/cart');
   const toggleUserMenu = () => setIsUserMenuOpen(!isUserMenuOpen);
 
   // Close menus when clicking outside
@@ -147,10 +146,12 @@ const Header = () => {
         <div className="flex h-16 md:h-20 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 group">
-            <div className="relative overflow-hidden rounded-lg transition-all duration-300 shadow-sm group-hover:shadow-md">
-              <div className="h-8 md:h-10 px-3 flex items-center justify-center bg-gradient-to-r from-primary/10 to-accent/10 text-lg font-bold text-primary">
-                TAP
-              </div>
+            <div className="relative overflow-hidden transition-all duration-300 shadow-sm group-hover:shadow-md">
+              <img 
+                src="/assets/images/logo.png" 
+                alt="TAP Logo" 
+                className="h-10 md:h-12 w-auto object-contain"
+              />
               <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </div>
             <span className="text-sm md:text-base font-medium hidden sm:inline-block">Turn Art into Pages</span>
@@ -180,7 +181,7 @@ const Header = () => {
             {/* Cart Button */}
             <div className="relative">
               <Button
-                onClick={toggleCart}
+                onClick={goToCart}
                 variant="ghost"
                 size="icon-sm"
                 className="rounded-full"
@@ -449,9 +450,6 @@ const Header = () => {
           )}
         </AnimatePresence>
       </div>
-
-      {/* Cart Drawer */}
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </motion.header>
   );
 };

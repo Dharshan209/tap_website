@@ -52,7 +52,8 @@ const EnhancedImageUploader = ({
   
   const getUserUploadPath = useCallback(() => {
     if (!user) {
-      throw new Error('User is not authenticated');
+      console.warn('User not authenticated, using guest path');
+      return `${uploadPath}/guest-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     }
     return `${uploadPath}/${user.uid}`;
   }, [user, uploadPath]);
@@ -102,75 +103,139 @@ const EnhancedImageUploader = ({
     }
   }, [uploadTriggered, uploadStarted, images, onUploadsComplete]);
 
-  // Process upload queue
+  // Process upload queue with parallel uploads
   useEffect(() => {
+    if (uploadQueue.length === 0 || isProcessingQueue) return;
+    
     const processQueue = async () => {
-      if (uploadQueue.length === 0 || isProcessingQueue) return;
-      
       setIsProcessingQueue(true);
       
+      // Maximum concurrent uploads - using 3 for balance between speed and reliability
+      const MAX_CONCURRENT = 3;
+      
       try {
-        const fileToUpload = uploadQueue[0];
+        // Take files from queue (up to MAX_CONCURRENT)
+        const filesToUpload = uploadQueue.slice(0, MAX_CONCURRENT);
         
-        // Check if file exists
-        if (!fileToUpload?.file) {
-          console.error('Skipping upload - No file found:', fileToUpload.id);
-          setUploadQueue(prev => prev.filter(item => item.id !== fileToUpload.id));
-          return;
-        }
-        
-        setCurrentUploads(prev => ({
-          ...prev,
-          [fileToUpload.id]: {
-            file: fileToUpload,
-            progress: 0,
-            status: 'uploading'
-          }
-        }));
-        
-        const result = await uploadFile(
-          fileToUpload.file,
-          getUserUploadPath(),
-          { customMetadata: { userId: user?.uid || 'anonymous' } }
-        );
-        
-        const enhancedImage = {
-          ...fileToUpload,
-          storageUrl: result.url,
-          storagePath: result.path,
-          uploadComplete: true
-        };
-        
-        setImages(prevImages => {
-          const updatedImages = prevImages.map(img => 
-            img.id === fileToUpload.id ? enhancedImage : img
-          );
-          return updatedImages;
+        // Mark files as uploading in UI
+        filesToUpload.forEach(fileToUpload => {
+          if (!fileToUpload?.file) return;
+          
+          setCurrentUploads(prev => ({
+            ...prev,
+            [fileToUpload.id]: {
+              file: fileToUpload,
+              progress: 0,
+              status: 'uploading'
+            }
+          }));
         });
         
-        setCurrentUploads(prev => ({
-          ...prev,
-          [fileToUpload.id]: {
-            ...prev[fileToUpload.id],
-            progress: 100,
-            status: 'complete'
+        // Create upload promises for each file
+        const uploadPromises = filesToUpload.map(async (fileToUpload) => {
+          try {
+            // Skip if file doesn't exist
+            if (!fileToUpload?.file) {
+              console.error('Skipping upload - No file found:', fileToUpload.id);
+              return { 
+                id: fileToUpload.id, 
+                status: 'error', 
+                error: 'No file found' 
+              };
+            }
+            
+            // Include orderId in the metadata if available from the file or sessionStorage
+            const orderId = fileToUpload.orderId || sessionStorage.getItem('current-order-id');
+            
+            // Custom progress tracker for this file
+            const onProgress = (progress) => {
+              setCurrentUploads(prev => ({
+                ...prev,
+                [fileToUpload.id]: {
+                  ...prev[fileToUpload.id],
+                  progress
+                }
+              }));
+            };
+            
+            // Upload the file with progress tracking
+            const result = await uploadFile(
+              fileToUpload.file,
+              getUserUploadPath(),
+              { 
+                customMetadata: { 
+                  userId: user?.uid || 'anonymous',
+                  orderId: orderId || 'pending',
+                  uploadTimestamp: new Date().toISOString()
+                } 
+              },
+              onProgress
+            );
+            
+            // Create enhanced image with upload info
+            const enhancedImage = {
+              ...fileToUpload,
+              storageUrl: result.url,
+              storagePath: result.path,
+              uploadComplete: true
+            };
+            
+            // Update image in the images array
+            setImages(prevImages => {
+              const updatedImages = prevImages.map(img => 
+                img.id === fileToUpload.id ? enhancedImage : img
+              );
+              return updatedImages;
+            });
+            
+            // Mark as complete in UI
+            setCurrentUploads(prev => ({
+              ...prev,
+              [fileToUpload.id]: {
+                ...prev[fileToUpload.id],
+                progress: 100,
+                status: 'complete'
+              }
+            }));
+            
+            return { id: fileToUpload.id, status: 'success', result };
+          } catch (err) {
+            console.error(`Upload error for ${fileToUpload.id}:`, err);
+            
+            // Mark as error in UI
+            setCurrentUploads(prev => ({
+              ...prev,
+              [fileToUpload.id]: {
+                ...prev[fileToUpload.id],
+                status: 'error',
+                error: err.message
+              }
+            }));
+            
+            return { id: fileToUpload.id, status: 'error', error: err.message };
           }
-        }));
+        });
         
-        setUploadQueue(prev => prev.filter(item => item.id !== fileToUpload.id));
+        // Wait for all uploads to complete
+        const results = await Promise.all(uploadPromises);
+        
+        // Remove processed files from queue
+        setUploadQueue(prev => 
+          prev.filter(item => !results.some(r => r.id === item.id))
+        );
+        
+        // If there are errors, show the first one
+        const firstError = results.find(r => r.status === 'error');
+        if (firstError) {
+          setError(`Upload failed: ${firstError.error}`);
+        } else {
+          // Clear any previous errors if all successful
+          setError('');
+        }
         
       } catch (err) {
-        console.error('Upload error:', err);
+        console.error('Upload batch error:', err);
         setError(`Upload failed: ${err.message}`);
-        setUploadQueue(prev => prev.filter(item => item.id !== uploadQueue[0].id));
-        setCurrentUploads(prev => ({
-          ...prev,
-          [uploadQueue[0].id]: {
-            ...prev[uploadQueue[0].id],
-            status: 'error',
-            error: err.message
-          }
-        }));
       } finally {
         setIsProcessingQueue(false);
       }
@@ -279,9 +344,9 @@ useEffect(() => {
     };
   }, [images, isProcessingQueue, uploadQueue.length]);
   
-  // Handle file drop
+  // Handle file drop with image compression
   const onDrop = useCallback(
-    (acceptedFiles) => {
+    async (acceptedFiles) => {
       // Clear previous errors
       setError('');
       
@@ -295,64 +360,183 @@ useEffect(() => {
       const remainingSlots = maxImages - images.length;
       const filesToAdd = acceptedFiles.slice(0, remainingSlots);
       
-      // Process and add the files
-      const newImages = filesToAdd.map((file) => {
-        // Check file size
-        if (file.size > MAX_FILE_SIZE) {
-          setError(`File "${file.name}" exceeds the 5MB size limit`);
-          return null;
-        }
-        
-        // Create image object with preview URL
-        const previewUrl = URL.createObjectURL(file);
-        
-        // Create image object - mark as stored in session directly
-        const imageObj = {
-          id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-          file,
-          preview: previewUrl,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          uploadComplete: false,
-          createdAt: new Date().toISOString(),
-          storedInSession: true,
-        };
-        
-        // Add to upload queue if uploadImmediately is true
-        if (uploadImmediately) {
-          setUploadQueue(prev => [...prev, imageObj]);
-        }
-        
-        return imageObj;
-      }).filter(Boolean); // Remove any null entries (files that were too large)
+      // Add loading indicator while processing
+      setIsProcessingQueue(true);
       
-      // Add to images state
-      setImages((prevImages) => [...prevImages, ...newImages]);
-      
-      // Store in session storage immediately
       try {
-        const storedImages = JSON.parse(sessionStorage.getItem('tap-artwork-temp') || '[]');
-        const updatedStorage = [...storedImages, ...newImages.map(img => ({
-          id: img.id,
-          name: img.name,
-          size: img.size,
-          type: img.type,
-          preview: img.preview,
-          createdAt: img.createdAt,
-          storedInSession: true
-        }))];
-        sessionStorage.setItem('tap-artwork-temp', JSON.stringify(updatedStorage));
+        // Process files with potential compression
+        const processedImages = await Promise.all(filesToAdd.map(async (file) => {
+          // Check file size
+          if (file.size > MAX_FILE_SIZE) {
+            // Attempt to compress large images
+            if (file.type.startsWith('image/')) {
+              try {
+                // Create preview URL
+                const previewUrl = URL.createObjectURL(file);
+                
+                // Create image object with temporary status
+                const tempImageObj = {
+                  id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                  preview: previewUrl,
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                  uploadComplete: false,
+                  createdAt: new Date().toISOString(),
+                  storedInSession: true,
+                  isCompressing: true,
+                  orderId: sessionStorage.getItem('current-order-id') || null,
+                };
+                
+                // Compress the image using canvas
+                const compressedFile = await new Promise((resolve, reject) => {
+                  const img = new Image();
+                  img.onload = () => {
+                    // Create canvas for compression
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // Calculate new dimensions while maintaining aspect ratio
+                    const MAX_WIDTH = 1800;
+                    const MAX_HEIGHT = 1800;
+                    
+                    if (width > height) {
+                      if (width > MAX_WIDTH) {
+                        height = Math.round(height * (MAX_WIDTH / width));
+                        width = MAX_WIDTH;
+                      }
+                    } else {
+                      if (height > MAX_HEIGHT) {
+                        width = Math.round(width * (MAX_HEIGHT / height));
+                        height = MAX_HEIGHT;
+                      }
+                    }
+                    
+                    // Set canvas dimensions
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Draw and compress
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Convert to blob with reduced quality
+                    canvas.toBlob((blob) => {
+                      if (blob) {
+                        // Create new file from blob
+                        const compressedFile = new File(
+                          [blob], 
+                          file.name, 
+                          { type: 'image/jpeg', lastModified: Date.now() }
+                        );
+                        
+                        // Check if compression actually reduced the size
+                        if (compressedFile.size < file.size && compressedFile.size <= MAX_FILE_SIZE) {
+                          resolve(compressedFile);
+                        } else {
+                          // If compression didn't help enough, reject
+                          reject(new Error(`File "${file.name}" still exceeds 5MB after compression`));
+                        }
+                      } else {
+                        reject(new Error('Compression failed'));
+                      }
+                    }, 'image/jpeg', 0.7); // Adjust quality as needed
+                  };
+                  
+                  img.onerror = () => {
+                    reject(new Error(`Failed to load image: ${file.name}`));
+                  };
+                  
+                  img.src = previewUrl;
+                }).catch(err => {
+                  console.warn('Image compression failed:', err);
+                  throw new Error(`File "${file.name}" exceeds the 5MB size limit and couldn't be compressed`);
+                });
+                
+                // Create image object with compressed file and preview URL
+                const imageObj = {
+                  ...tempImageObj,
+                  file: compressedFile,
+                  size: compressedFile.size,
+                  isCompressing: false,
+                  wasCompressed: true,
+                };
+                
+                return imageObj;
+              } catch (err) {
+                console.warn('Compression error:', err);
+                setError(err.message);
+                return null;
+              }
+            } else {
+              setError(`File "${file.name}" exceeds the 5MB size limit`);
+              return null;
+            }
+          }
+          
+          // For smaller files, just create the image object normally
+          const previewUrl = URL.createObjectURL(file);
+          
+          // Create image object
+          const imageObj = {
+            id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            file,
+            preview: previewUrl,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            uploadComplete: false,
+            createdAt: new Date().toISOString(),
+            storedInSession: true,
+            orderId: sessionStorage.getItem('current-order-id') || null,
+          };
+          
+          return imageObj;
+        }));
+        
+        // Filter out null entries (files that were too large and couldn't be compressed)
+        const newImages = processedImages.filter(Boolean);
+        
+        if (newImages.length > 0) {
+          // Add to images state
+          setImages((prevImages) => [...prevImages, ...newImages]);
+          
+          // Queue uploads
+          setUploadQueue(prev => [...prev, ...newImages]);
+          
+          // Store in session storage
+          try {
+            const storedImages = JSON.parse(sessionStorage.getItem('tap-artwork-temp') || '[]');
+            const updatedStorage = [...storedImages, ...newImages.map(img => ({
+              id: img.id,
+              name: img.name,
+              size: img.size,
+              type: img.type,
+              preview: img.preview,
+              createdAt: img.createdAt,
+              storedInSession: true,
+              wasCompressed: img.wasCompressed,
+              orderId: sessionStorage.getItem('current-order-id') || null,
+            }))];
+            sessionStorage.setItem('tap-artwork-temp', JSON.stringify(updatedStorage));
+          } catch (err) {
+            console.error('Error storing images in session:', err);
+          }
+          
+          // If we couldn't add all files due to the limit, show a message
+          if (acceptedFiles.length > remainingSlots) {
+            setError(`Only added ${remainingSlots} images. Maximum ${maxImages} images allowed.`);
+          }
+        }
       } catch (err) {
-        console.error('Error storing images in session:', err);
-      }
-      
-      // If we couldn't add all files due to the limit, show a message
-      if (acceptedFiles.length > remainingSlots) {
-        setError(`Only added ${remainingSlots} images. Maximum ${maxImages} images allowed.`);
+        console.error('Error processing files:', err);
+        setError(`Error processing files: ${err.message}`);
+      } finally {
+        setIsProcessingQueue(false);
       }
     },
-    [images, setImages, uploadImmediately, maxImages]
+    [images, setImages, maxImages]
   );
   
   // Configure dropzone
@@ -518,13 +702,36 @@ useEffect(() => {
         </div>
       )}
       
-      {/* Processing status */}
+      {/* Processing status with enhanced progress bar */}
       {isProcessingQueue && (
-        <div className="flex items-center gap-2 p-3 text-sm text-primary bg-primary/10 rounded-md">
-          <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-          <div>
-            <span className="font-medium">Uploading images... Please don't close this page.</span>
-            <div className="text-xs mt-1">Leaving now may result in data loss. Please wait until all uploads complete.</div>
+        <div className="flex flex-col gap-2 p-4 text-sm text-primary bg-primary/10 rounded-md">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+            <div>
+              <span className="font-medium">Uploading images in parallel... Please don't close this page.</span>
+              <div className="text-xs mt-1">Leaving now may result in data loss. Please wait until all uploads complete.</div>
+            </div>
+          </div>
+          
+          {/* Overall progress visualization */}
+          <div className="mt-2">
+            <div className="flex justify-between text-xs mb-1">
+              <span>Upload progress:</span>
+              <span>{Math.round((Object.values(currentUploads).reduce((sum, item) => sum + (item.progress || 0), 0) / 
+                (Object.keys(currentUploads).length * 100)) * 100)}%</span>
+            </div>
+            <div className="w-full h-2 bg-primary/20 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300 ease-out"
+                style={{ 
+                  width: `${(Object.values(currentUploads).reduce((sum, item) => sum + (item.progress || 0), 0) / 
+                  (Object.keys(currentUploads).length * 100)) * 100}%` 
+                }}
+              />
+            </div>
+            <div className="text-xs mt-1.5 text-primary/80">
+              {Object.values(currentUploads).filter(item => item.status === 'complete').length} of {Object.keys(currentUploads).length} files complete
+            </div>
           </div>
         </div>
       )}
@@ -537,21 +744,25 @@ useEffect(() => {
         </div>
       )}
       
-      {/* Dropzone */}
+      {/* Dropzone with enhanced UI */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-6 transition-colors text-center cursor-pointer ${
+        className={`border-2 border-dashed rounded-lg p-6 transition-all duration-300 text-center cursor-pointer ${
           isDragActive
-            ? 'border-primary bg-primary/5'
-            : 'border-border hover:border-primary/50 hover:bg-muted/50'
+            ? 'border-primary bg-primary/5 scale-[0.99] shadow-inner'
+            : 'border-border hover:border-primary/50 hover:bg-muted/50 hover:shadow-md'
         } ${images.length >= maxImages ? 'opacity-50 pointer-events-none' : ''}`}
         aria-label={isDragActive ? "Drop images here" : "Drag & drop upload area"}
         aria-disabled={images.length >= maxImages}
       >
         <input {...getInputProps()} aria-label="File input" />
         <div className="flex flex-col items-center justify-center space-y-3">
-          <div className="p-3 bg-primary/10 text-primary rounded-full">
-            <Upload className="h-6 w-6" aria-hidden="true" />
+          <div className={`p-3 rounded-full transition-all duration-300 ${
+            isDragActive 
+              ? 'bg-primary/20 text-primary scale-110' 
+              : 'bg-primary/10 text-primary'
+          }`}>
+            <Upload className={`h-6 w-6 ${isDragActive ? 'animate-bounce' : ''}`} aria-hidden="true" />
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium">
@@ -562,9 +773,16 @@ useEffect(() => {
             <p className="text-xs text-muted-foreground">
               Supports JPG, PNG, GIF, WebP (max 5MB each)
             </p>
-            <p className="text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-1 rounded mt-1">
-              File size limit: 5MB per image
-            </p>
+            
+            {/* Badge with auto-compression hint */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2 justify-center">
+              <p className="text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-1 rounded">
+                File size limit: 5MB per image
+              </p>
+              <p className="text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-2 py-1 rounded">
+                Large images auto-compressed
+              </p>
+            </div>
             
             {/* Show reminder about upload behavior */}
             {!uploadImmediately && !uploadStarted && images.length > 0 && (
@@ -575,12 +793,22 @@ useEffect(() => {
             
             {/* Upload status indicator */}
             {images.length > 0 && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {images.length} of {maxImages} images selected
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <div className="h-2 bg-muted rounded-full overflow-hidden w-32">
+                  <div 
+                    className="h-full bg-primary transition-all duration-500"
+                    style={{ width: `${(images.length / maxImages) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs font-medium text-primary">
+                  {images.length}/{maxImages}
+                </p>
                 {images.filter(img => img.uploadComplete).length > 0 && 
-                  ` (${images.filter(img => img.uploadComplete).length} uploaded)`
+                  <span className="text-xs text-green-600">
+                    ({images.filter(img => img.uploadComplete).length} uploaded)
+                  </span>
                 }
-              </p>
+              </div>
             )}
           </div>
         </div>
@@ -618,7 +846,7 @@ useEffect(() => {
                         <img
                           src={image.storageUrl || image.preview}
                           alt={`Artwork ${index + 1}`}
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full object-cover ${image.isCompressing ? 'opacity-50' : ''}`}
                           loading="lazy"
                           onError={(e) => {
                             // Log error but avoid console.error in production
@@ -632,6 +860,23 @@ useEffect(() => {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
                           <span className="text-xs">No Preview</span>
+                        </div>
+                      )}
+                      
+                      {/* Compression indicator */}
+                      {image.isCompressing && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+                          <div className="flex flex-col items-center text-primary">
+                            <div className="h-8 w-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                            <span className="text-xs mt-2">Compressing...</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Compressed badge */}
+                      {image.wasCompressed && !image.isCompressing && (
+                        <div className="absolute bottom-2 left-2 bg-green-500/80 text-white text-xs px-1.5 py-0.5 rounded-sm backdrop-blur-sm">
+                          Compressed
                         </div>
                       )}
                       </div>

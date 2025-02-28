@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFirestore } from '../../hooks/useFirestore';
 import { useAuth } from '../../hooks/useAuth';
+import { getDefaultImageSrc } from '../../components/ui/default-image';
 import { 
   Search, 
   RefreshCw, 
@@ -67,7 +68,6 @@ const UserManagement = () => {
         setFilteredUsers(processedUsers);
         setError(null);
       } catch (err) {
-        console.error('Error fetching users:', err);
         setError('Failed to load users. Please try again.');
       } finally {
         setLoading(false);
@@ -160,7 +160,6 @@ const UserManagement = () => {
       }, 3000);
       
     } catch (err) {
-      console.error('Error updating user role:', err);
       setError('Failed to update user role. Please try again.');
     }
   };
@@ -183,7 +182,6 @@ const UserManagement = () => {
       }, 3000);
       
     } catch (err) {
-      console.error('Error deleting user:', err);
       setError('Failed to delete user. Please try again.');
     }
   };
@@ -388,6 +386,9 @@ const UserManagement = () => {
                               src={user.photoURL} 
                               alt={user.displayName} 
                               className="h-8 w-8 rounded-full object-cover"
+                              onError={(e) => {
+                                e.target.src = getDefaultImageSrc('avatar');
+                              }}
                             />
                           ) : (
                             <User className="h-4 w-4" />
@@ -527,7 +528,6 @@ const UserManagement = () => {
               
               return true;
             } catch (err) {
-              console.error('Error updating user:', err);
               setError('Failed to update user.');
               return false;
             }

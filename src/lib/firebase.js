@@ -15,17 +15,16 @@ import {
   connectStorageEmulator 
 } from 'firebase/storage';
 
-// Your Firebase configuration
-// Replace with your actual Firebase config values
+// Firebase configuration from environment variables
 const firebaseConfig = {
-    apiKey: "AIzaSyAYRAAUrCvzNtRYWdgwT5YURFUZN9cn2eo",
-    authDomain: "tap---turn-art-into-pages.firebaseapp.com",
-    projectId: "tap---turn-art-into-pages",
-    storageBucket: "tap---turn-art-into-pages.firebasestorage.app",
-    messagingSenderId: "848383299346",
-    appId: "1:848383299346:web:f2948c0d00f9bb387cedcb",
-    measurementId: "G-8D9DQNKFZ1"
-  };
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+};
 
 // Validate Firebase configuration
 const validateFirebaseConfig = (config) => {

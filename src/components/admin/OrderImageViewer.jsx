@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, Loader } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, Loader, AlertCircle, Image } from 'lucide-react';
 import { getDownloadURL, ref } from 'firebase/storage';
 import { storage } from '../../lib/firebase';
+import { getDefaultImageSrc } from '../../components/ui/default-image';
+import { getOrderImages, getImagesByOrderId } from '../../utils/firebaseStorageUtils';
 
-const OrderImageViewer = ({ order, onClose }) => {
+const OrderImageViewer = ({ order, orderId, onClose }) => {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,59 +15,101 @@ const OrderImageViewer = ({ order, onClose }) => {
   // Fetch all images for this order
   useEffect(() => {
     const fetchImages = async () => {
-      if (!order || !order.items || order.items.length === 0) {
-        setError("No images found in this order");
-        setLoading(false);
-        return;
-      }
-
       try {
-        const allImages = [];
+        let allImages = [];
         
-        // Collect all image paths from all items
-        for (const item of order.items) {
-          if (item.images && Array.isArray(item.images)) {
-            for (const image of item.images) {
-              if (image.path) {
-                try {
-                  // Create a reference to the image in Firebase Storage
-                  const storageRef = ref(storage, image.path);
-                  
-                  // Get download URL
-                  const url = await getDownloadURL(storageRef);
-                  
-                  // Add to our collection
-                  allImages.push({
-                    url,
-                    name: image.originalName || image.name || 'Image',
-                    path: image.path
-                  });
-                } catch (imageError) {
-                  console.error(`Error fetching image ${image.path}:`, imageError);
-                  // Continue with other images rather than failing completely
-                }
-              }
+        // If we have an order object with items
+        if (order && order.items && order.items.length > 0) {
+          console.log("Trying to fetch images from order object");
+          try {
+            allImages = await getOrderImages(order);
+            console.log("Images from order:", allImages.length);
+          } catch (err) {
+            console.warn("Error getting images from order object:", err);
+          }
+        } 
+        
+        // If we have an order ID or if we need to try order ID as a fallback
+        if (allImages.length === 0) {
+          const id = orderId || (order && order.id);
+          if (id) {
+            console.log("Trying to fetch images by ID:", id);
+            try {
+              allImages = await getImagesByOrderId(id);
+              console.log("Images from order ID:", allImages.length);
+            } catch (err) {
+              console.warn("Error getting images by order ID:", err);
             }
           }
         }
-
+        
+        // Check item storagePaths directly as a last resort
+        if (allImages.length === 0 && order && order.items) {
+          console.log("Checking for storagePaths directly in items");
+          const storagePathPromises = [];
+          
+          // Collect all potential image paths
+          order.items.forEach(item => {
+            if (item.storagePath) {
+              console.log("Found storagePath:", item.storagePath);
+              storagePathPromises.push(
+                getDownloadURL(ref(storage, item.storagePath))
+                  .then(url => ({
+                    url,
+                    path: item.storagePath,
+                    name: item.name || 'image.jpg'
+                  }))
+                  .catch(err => null) // Skip on error
+              );
+            }
+            if (item.storageUrl) {
+              console.log("Found storageUrl");
+              storagePathPromises.push(Promise.resolve({
+                url: item.storageUrl,
+                path: item.storagePath || '',
+                name: item.name || 'image.jpg'
+              }));
+            }
+            if (item.coverImage && !item.coverImage.startsWith('data:') && !item.coverImage.startsWith('blob:')) {
+              console.log("Found coverImage URL");
+              storagePathPromises.push(Promise.resolve({
+                url: item.coverImage,
+                path: '',
+                name: item.name || 'cover.jpg'
+              }));
+            }
+          });
+          
+          // Wait for all promises
+          if (storagePathPromises.length > 0) {
+            const results = await Promise.all(storagePathPromises);
+            allImages = results.filter(Boolean); // Remove nulls
+            console.log("Images from direct paths:", allImages.length);
+          }
+        }
+        
+        console.log("Total images found:", allImages.length);
         if (allImages.length === 0) {
           setError("No images found for this order");
         } else {
           setImages(allImages);
         }
       } catch (err) {
-        console.error("Error fetching images:", err);
+        console.error("Error in image fetching:", err);
         setError(`Error loading images: ${err.message}`);
       } finally {
         setLoading(false);
       }
     };
 
-    if (order) {
+    if (order || orderId) {
+      setLoading(true);
       fetchImages();
+    } else {
+      setError("No order information provided");
+      setLoading(false);
     }
-  }, [order]);
+  }, [order, orderId]);
 
   // Navigate between images
   const goToNextImage = () => {
@@ -96,6 +140,12 @@ const OrderImageViewer = ({ order, onClose }) => {
       const response = await fetch(image.url);
       const blob = await response.blob();
       
+      // Don't try to download placeholder images
+      if (image.isPlaceholder) {
+        setError("Cannot download placeholder image");
+        return;
+      }
+
       // Create a temporary link element
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -104,7 +154,6 @@ const OrderImageViewer = ({ order, onClose }) => {
       link.click();
       document.body.removeChild(link);
     } catch (err) {
-      console.error("Error downloading image:", err);
       setError(`Error downloading image: ${err.message}`);
     }
   };
@@ -144,6 +193,7 @@ const OrderImageViewer = ({ order, onClose }) => {
         <div className="text-white text-center">
           <Loader className="h-10 w-10 mx-auto animate-spin mb-4" />
           <p>Loading images...</p>
+          <p className="text-sm text-white/70 mt-2">This may take a moment while we search for images...</p>
         </div>
       </div>
     );
@@ -153,8 +203,22 @@ const OrderImageViewer = ({ order, onClose }) => {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
         <div className="bg-background p-6 rounded-lg max-w-md">
-          <h3 className="text-xl font-bold mb-4">Error</h3>
-          <p className="text-destructive mb-6">{error}</p>
+          <h3 className="text-xl font-bold mb-4 flex items-center text-red-500">
+            <AlertCircle className="h-6 w-6 mr-2" />
+            Error Loading Images
+          </h3>
+          <p className="text-destructive mb-4">{error}</p>
+          
+          <div className="bg-amber-50 p-4 rounded-md mb-6">
+            <h4 className="font-medium text-amber-800 mb-2">Possible solutions:</h4>
+            <ul className="list-disc pl-5 text-sm space-y-1 text-amber-700">
+              <li>The images may not have been uploaded yet</li>
+              <li>Images might have been uploaded under a different order ID</li>
+              <li>Images might have been deleted or moved</li>
+              <li>There might be network connectivity issues</li>
+            </ul>
+          </div>
+          
           <div className="flex justify-end">
             <button
               onClick={onClose}
@@ -172,8 +236,22 @@ const OrderImageViewer = ({ order, onClose }) => {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
         <div className="bg-background p-6 rounded-lg max-w-md">
-          <h3 className="text-xl font-bold mb-4">No Images Found</h3>
-          <p className="mb-6">There are no images available for this order.</p>
+          <h3 className="text-xl font-bold mb-4 flex items-center text-amber-600">
+            <Image className="h-6 w-6 mr-2" />
+            No Images Found
+          </h3>
+          <p className="mb-4">There are no images available for this order.</p>
+          
+          <div className="bg-amber-50 p-4 rounded-md mb-6">
+            <h4 className="font-medium text-amber-800 mb-2">Possible reasons:</h4>
+            <ul className="list-disc pl-5 text-sm space-y-1 text-amber-700">
+              <li>Images may not have been uploaded with this order yet</li>
+              <li>Images might have been stored under a different order ID</li>
+              <li>Images might have been manually removed</li>
+              <li>User may have skipped uploading images to this order</li>
+            </ul>
+          </div>
+          
           <div className="flex justify-end">
             <button
               onClick={onClose}
@@ -259,8 +337,12 @@ const OrderImageViewer = ({ order, onClose }) => {
           <img
             src={currentImage.url}
             alt={currentImage.name}
-            className="transition-transform duration-200 max-h-full"
+            className={`transition-transform duration-200 max-h-full ${currentImage.isPlaceholder ? 'opacity-50' : ''}`}
             style={{ transform: `scale(${zoomLevel})` }}
+            onError={(e) => {
+              e.target.src = getDefaultImageSrc('image');
+              e.target.classList.add('opacity-50');
+            }}
           />
         </div>
         
@@ -291,7 +373,11 @@ const OrderImageViewer = ({ order, onClose }) => {
               <img 
                 src={image.url} 
                 alt={`Thumbnail ${index + 1}`}
-                className="h-full w-full object-cover"
+                className={`h-full w-full object-cover ${image.isPlaceholder ? 'opacity-50' : ''}`}
+                onError={(e) => {
+                  e.target.src = getDefaultImageSrc('image');
+                  e.target.classList.add('opacity-50');
+                }}
               />
             </button>
           ))}

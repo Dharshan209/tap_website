@@ -228,7 +228,7 @@ const OrderConfirmationPage = () => {
                           {item.childName ? `${item.childName}'s Book` : 'Custom Storybook'}
                         </h3>
                         <p className="text-xs text-muted-foreground">
-                          Theme: {item.theme.charAt(0).toUpperCase() + item.theme.slice(1)}
+                          Theme: {item.theme && typeof item.theme === 'string' ? `${item.theme.charAt(0).toUpperCase()}${item.theme.slice(1)}` : 'Custom'}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Hardcover, 20 pages

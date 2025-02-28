@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { CloudUpload, CheckCircle, AlertCircle, Loader } from 'lucide-react';
-import { getOrderImages } from '../../utils/firebaseStorageUtils';
+import { getOrderImages, getImagesByOrderId } from '../../utils/firebaseStorageUtils';
+import { getDownloadURL, ref } from 'firebase/storage';
+import { storage } from '../../lib/firebase';
 
 // This component handles exporting order images to Google Drive
 // This frontend component would need to be paired with a backend Cloud Function
 // that handles the actual Google Drive API integration
 
-const GoogleDriveExporter = ({ order, buttonText = "Export to Google Drive" }) => {
+const GoogleDriveExporter = ({ order, orderId, buttonText = "Export to Google Drive" }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
@@ -14,10 +16,13 @@ const GoogleDriveExporter = ({ order, buttonText = "Export to Google Drive" }) =
   const [driveUrl, setDriveUrl] = useState(null);
 
   const exportToDrive = async () => {
-    if (!order || !order.id) {
-      setError("Invalid order data");
+    // We can work with either an order object or just an order ID
+    if ((!order && !orderId) || (order && !order.id && !orderId)) {
+      setError("No valid order information provided");
       return;
     }
+    
+    const id = orderId || (order && order.id);
 
     setIsExporting(true);
     setProgress(0);
@@ -28,10 +33,79 @@ const GoogleDriveExporter = ({ order, buttonText = "Export to Google Drive" }) =
     try {
       // Step 1: Fetch all the image data from Firebase Storage
       setProgress(10);
-      const images = await getOrderImages(order);
+      let images = [];
       
+      // Try different methods to get images
+      if (order && order.items) {
+        try {
+          images = await getOrderImages(order);
+          console.log("Images from order:", images.length);
+        } catch (err) {
+          console.warn("Error getting images from order object:", err);
+        }
+      }
+      
+      // If no images found directly in order, try using ID to find them
       if (images.length === 0) {
-        throw new Error("No images found in this order");
+        const id = orderId || (order && order.id);
+        if (id) {
+          try {
+            images = await getImagesByOrderId(id);
+            console.log("Images from order ID:", images.length);
+          } catch (err) {
+            console.warn("Error getting images by order ID:", err);
+          }
+        }
+      }
+      
+      // Check item storagePaths directly as a last resort
+      if (images.length === 0 && order && order.items) {
+        console.log("Checking for storagePaths directly in items");
+        const storagePathPromises = [];
+        
+        // Collect all potential image paths
+        order.items.forEach(item => {
+          if (item.storagePath) {
+            console.log("Found storagePath:", item.storagePath);
+            storagePathPromises.push(
+              getDownloadURL(ref(storage, item.storagePath))
+                .then(url => ({
+                  url,
+                  path: item.storagePath,
+                  name: item.name || 'image.jpg'
+                }))
+                .catch(err => null) // Skip on error
+            );
+          }
+          if (item.storageUrl) {
+            console.log("Found storageUrl");
+            storagePathPromises.push(Promise.resolve({
+              url: item.storageUrl,
+              path: item.storagePath || '',
+              name: item.name || 'image.jpg'
+            }));
+          }
+          if (item.coverImage && !item.coverImage.startsWith('data:') && !item.coverImage.startsWith('blob:')) {
+            console.log("Found coverImage URL");
+            storagePathPromises.push(Promise.resolve({
+              url: item.coverImage,
+              path: '',
+              name: item.name || 'cover.jpg'
+            }));
+          }
+        });
+        
+        // Wait for all promises
+        if (storagePathPromises.length > 0) {
+          const results = await Promise.all(storagePathPromises);
+          images = results.filter(Boolean); // Remove nulls
+          console.log("Images from direct paths:", images.length);
+        }
+      }
+      
+      console.log("Total images found:", images.length);
+      if (images.length === 0) {
+        throw new Error("No images found for this order");
       }
       
       setProgress(30);

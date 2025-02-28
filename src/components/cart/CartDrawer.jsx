@@ -238,16 +238,18 @@ const CartDrawer = ({ isOpen, onClose }) => {
                               <div className="flex space-x-2">
                                 <button
                                   onClick={() => navigate(`/product?edit=${item.id}`)}
-                                  className="text-primary hover:text-primary/90 transition-colors p-1 rounded-md"
+                                  className="text-primary hover:text-primary/90 transition-colors p-1 rounded-md flex items-center"
                                   aria-label="Edit item"
                                 >
+                                  <span className="text-xs mr-1">Edit</span>
                                   <ChevronRight className="h-4 w-4" />
                                 </button>
                                 <button
                                   onClick={() => handleRemove(item.id)}
-                                  className="text-destructive hover:text-destructive/90 transition-colors p-1 rounded-md"
+                                  className="text-destructive hover:text-destructive/90 transition-colors p-1 rounded-md flex items-center"
                                   aria-label="Remove item"
                                 >
+                                  <span className="text-xs mr-1">Remove</span>
                                   <Trash2 className="h-4 w-4" />
                                 </button>
                               </div>

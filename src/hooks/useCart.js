@@ -32,14 +32,23 @@ export const useCart = () => {
       // Generate a unique ID for the book if none exists
       const bookId = bookData.id || `book-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       
+      // Process book data to make it safe for storage
+      const processedBookData = { ...bookData };
+      
+      // Don't store blob URLs as they won't be valid across sessions
+      if (processedBookData.coverImage && processedBookData.coverImage.startsWith('blob:')) {
+        console.log('Converting blob URL to placeholder for book:', bookId);
+        delete processedBookData.coverImage;
+      }
+      
       // Create the book object with consistent properties and defaults
       const book = {
         id: bookId,
-        ...bookData,
-        type: bookData.type || 'custom-book',
-        price: Number(bookData.price) || 2499, // Default price in INR, ensure it's a number
-        quantity: Number(bookData.quantity) || 1, // Ensure quantity is a number
-        dateAdded: bookData.dateAdded || new Date().toISOString()
+        ...processedBookData,
+        type: processedBookData.type || 'custom-book',
+        price: Number(processedBookData.price) || 2499, // Default price in INR, ensure it's a number
+        quantity: Number(processedBookData.quantity) || 1, // Ensure quantity is a number
+        dateAdded: processedBookData.dateAdded || new Date().toISOString()
       };
       
       // Add to cart store

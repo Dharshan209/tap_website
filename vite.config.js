@@ -41,17 +41,24 @@ export default defineConfig(({ command, mode }) => {
           manualChunks: {
             vendor: ['react', 'react-dom', 'react-router-dom'],
             ui: ['framer-motion', 'lucide-react'],
-            firebase: ['firebase'],
           },
         },
       },
       reportCompressedSize: false,
       chunkSizeWarningLimit: 1000,
+      // Generate the _redirects file for Vercel SPA routing
+      emptyOutDir: true,
+      outDir: 'dist',
+      assetsDir: 'assets',
+      sourcemap: false,
     },
     server: {
       port: 3000,
       strictPort: true,
       open: true,
+    },
+    optimizeDeps: {
+      include: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage']
     },
   }
 })

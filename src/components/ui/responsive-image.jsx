@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '../../lib/utils';
-import { Loader2, ImageIcon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import DefaultImage, { getDefaultImageSrc } from './default-image';
 
 /**
  * ResponsiveImage - Enhanced image component with loading states, error handling, and progressive loading
@@ -26,6 +27,7 @@ const ResponsiveImage = ({
   aspectRatio,
   loadingIcon = true,
   fallbackSrc,
+  fallbackType = 'image', // image, product, avatar, book
   objectFit = 'cover',
   onLoad,
   onError,
@@ -105,9 +107,9 @@ const ResponsiveImage = ({
       )}
 
       {/* Error state */}
-      {error && (
+      {error && !fallbackSrc && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/30 z-10">
-          <ImageIcon className="w-8 h-8 text-muted-foreground" />
+          <DefaultImage type={fallbackType} size="medium" />
           <span className="text-xs text-muted-foreground mt-2">Failed to load image</span>
         </div>
       )}
@@ -136,9 +138,9 @@ const ResponsiveImage = ({
       )}
 
       {/* Fallback image when error occurs */}
-      {error && fallbackSrc && (
+      {error && (
         <img
-          src={fallbackSrc}
+          src={fallbackSrc || getDefaultImageSrc(fallbackType)}
           alt={alt || 'Image fallback'}
           width={width}
           height={height}

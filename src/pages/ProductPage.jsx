@@ -14,17 +14,21 @@ import {
   CheckCircle, 
   Info,
   Upload,
-  Image
+  Image,
+  Sparkles,
+  Palette,
+  CornerDownLeft
 } from 'lucide-react';
 
 // Import components
 import BookCustomizationForm from '../components/product/BookCustomizationForm';
+import BookStyleSelection from '../components/product/BookStyleSelection';
 import { ProductImageSection } from '../components/product/image-handling';
 
 // Book price constants in rupees
 const BOOK_PRICES = {
-  realistic: 2499, // Realistic Story - requires 10 to 15 images
-  animated: 1499,  // Animated Story - requires only 1 image
+  realistic: 599, // Realistic Story - requires 10 to 15 images
+  animated: 599,  // Animated Story - requires only 1 image
 };
 
 const ProductPage = () => {
@@ -56,7 +60,7 @@ const ProductPage = () => {
     childName: '',
     age: '',
     notes: '',
-    bookType: 'realistic',  // 'realistic' or 'animated'
+    bookType: '',  // 'realistic' or 'animated'
     storyOption: 'template',      // 'template', 'custom', or template ID for predefined templates
     customStory: '',        // for user's own story text
     selectedTemplate: 'template1', // Default selected template
@@ -64,6 +68,9 @@ const ProductPage = () => {
   
   // State for form validation errors
   const [formErrors, setFormErrors] = useState({});
+  
+  // State for workflow progress
+  const [currentStep, setCurrentStep] = useState('style-selection'); // 'style-selection', 'upload', 'customize', 'preview'
   
   // State for active section on mobile
   const [activeSection, setActiveSection] = useState('upload'); // 'upload', 'customize', 'preview'
@@ -77,71 +84,88 @@ const ProductPage = () => {
   // State to control upload trigger
   const [triggerUpload, setTriggerUpload] = useState(false);
   
-  // Effect to validate uploads based on book type
-useEffect(() => {
-  // For animated story, we need exactly 1 image
-  // For realistic story, we need between 10-15 images
-  let isValid = false;
-  let errorMessage = '';
+  // Progress steps for workflow
+  const STEPS = [
+    { id: 'style-selection', label: 'Book Style' },
+    { id: 'upload', label: 'Upload Artwork' },
+    { id: 'customize', label: 'Customize' },
+    { id: 'cart', label: 'Add to Cart' }
+  ];
   
-  if (formData.bookType === 'animated') {
-    if (images.length > 1) {
-      errorMessage = 'Animated Story requires exactly 1 image. Please remove extra images.';
-    } else if (images.length < 1) {
-      errorMessage = 'Please upload 1 image for your Animated Story.';
-    } else if (images.length === 1 && !images[0].uploadComplete && images[0].storageUrl) {
-      // Fix for images that have URLs but aren't marked as complete
-      const updatedImages = [...images];
-      updatedImages[0] = {...updatedImages[0], uploadComplete: true};
-      setImages(updatedImages);
-      isValid = true;
-    } else if (images.length === 1 && !images[0].uploadComplete) {
-      errorMessage = 'Image upload in progress... Please wait.';
-    } else {
-      isValid = true;
-    }
-  } else { // realistic
-    if (images.length > 15) {
-      errorMessage = 'Maximum 15 images allowed. Please remove extra images.';
-    } else if (images.length < 10) {
-      const remaining = 10 - images.length;
-      errorMessage = `Please upload at least 10 images (${remaining} more needed).`;
-    } else {
-      // Fix for images that have URLs but aren't marked as complete
-      const incompleteWithUrls = images.filter(img => !img.uploadComplete && img.storageUrl);
-      if (incompleteWithUrls.length > 0) {
-        const updatedImages = images.map(img => 
-          (img.storageUrl && !img.uploadComplete) ? {...img, uploadComplete: true} : img
-        );
+  // Handle style selection
+  const handleStyleSelect = (style) => {
+    setFormData(prev => ({ ...prev, bookType: style }));
+    setCurrentStep('upload');
+  };
+  
+  // Effect to validate uploads based on book type
+  useEffect(() => {
+    // Skip validation if book type not selected or no images uploaded
+    if (!formData.bookType || images.length === 0) return;
+    
+    // For animated story, we need exactly 1 image
+    // For realistic story, we need between 10-15 images
+    let isValid = false;
+    let errorMessage = '';
+    
+    if (formData.bookType === 'animated') {
+      if (images.length > 1) {
+        errorMessage = 'Animated Story requires exactly 1 image. Please remove extra images.';
+      } else if (images.length < 1) {
+        errorMessage = 'Please upload 1 image for your Animated Story.';
+      } else if (images.length === 1 && !images[0].uploadComplete && images[0].storageUrl) {
+        // Fix for images that have URLs but aren't marked as complete
+        const updatedImages = [...images];
+        updatedImages[0] = {...updatedImages[0], uploadComplete: true};
         setImages(updatedImages);
-        
-        if (updatedImages.every(img => img.uploadComplete || img.storageUrl)) {
-          isValid = true;
-        }
-      } else if (!images.every(img => img.uploadComplete)) {
-        // Calculate how many are still uploading
-        const pendingCount = images.filter(img => !img.uploadComplete).length;
-        errorMessage = `${pendingCount} image${pendingCount > 1 ? 's' : ''} still uploading. Please wait until all uploads complete.`;
+        isValid = true;
+      } else if (images.length === 1 && !images[0].uploadComplete) {
+        errorMessage = 'Image upload in progress... Please wait.';
       } else {
         isValid = true;
       }
+    } else { // realistic
+      if (images.length > 15) {
+        errorMessage = 'Maximum 15 images allowed. Please remove extra images.';
+      } else if (images.length < 10) {
+        const remaining = 10 - images.length;
+        errorMessage = `Please upload at least 10 images (${remaining} more needed).`;
+      } else {
+        // Fix for images that have URLs but aren't marked as complete
+        const incompleteWithUrls = images.filter(img => !img.uploadComplete && img.storageUrl);
+        if (incompleteWithUrls.length > 0) {
+          const updatedImages = images.map(img => 
+            (img.storageUrl && !img.uploadComplete) ? {...img, uploadComplete: true} : img
+          );
+          setImages(updatedImages);
+          
+          if (updatedImages.every(img => img.uploadComplete || img.storageUrl)) {
+            isValid = true;
+          }
+        } else if (!images.every(img => img.uploadComplete)) {
+          // Calculate how many are still uploading
+          const pendingCount = images.filter(img => !img.uploadComplete).length;
+          errorMessage = `${pendingCount} image${pendingCount > 1 ? 's' : ''} still uploading. Please wait until all uploads complete.`;
+        } else {
+          isValid = true;
+        }
+      }
     }
-  }
-  
-  setUploadComplete(isValid);
-  setUploadError(errorMessage);
-  
-  // Clean up beforeunload handler when component unmounts
-  return () => {
-    window.onbeforeunload = null;
-  };
-}, [images, formData.bookType]);
+    
+    setUploadComplete(isValid);
+    setUploadError(errorMessage);
+    
+    // Clean up beforeunload handler when component unmounts
+    return () => {
+      window.onbeforeunload = null;
+    };
+  }, [images, formData.bookType]);
   
   // Handle form validation
   const validateForm = () => {
     const errors = {};
     
-    // Validate image count
+    // Validate image count based on book type
     if (formData.bookType === 'animated') {
       if (images.length !== 1) {
         setUploadError('Animated Story requires exactly 1 image.');
@@ -171,9 +195,9 @@ useEffect(() => {
     return Object.keys(errors).length === 0;
   };
   
-  // Handle moving to the next section
+  // Handle moving to the next step
   const handleContinue = () => {
-    if (activeSection === 'upload') {
+    if (currentStep === 'upload') {
       // Validate image uploads based on book type
       let isValid = false;
       
@@ -205,9 +229,7 @@ useEffect(() => {
           }
           
           // Check if there are still images being uploaded
-          const stillUploading = updatedImages ? 
-            updatedImages.some(img => !img.uploadComplete && !img.storageUrl) : 
-            images.some(img => !img.uploadComplete && !img.storageUrl);
+          const stillUploading = images.some(img => !img.uploadComplete && !img.storageUrl);
           
           if (!stillUploading) {
             isValid = true;
@@ -227,10 +249,11 @@ useEffect(() => {
         
         // Move to the customize section after a small delay to allow uploads to start
         setTimeout(() => {
+          setCurrentStep('customize');
           setActiveSection('customize');
         }, 300);
       }
-    } else if (activeSection === 'customize') {
+    } else if (currentStep === 'customize') {
       // Validate customization form
       const errors = {};
       
@@ -259,8 +282,19 @@ useEffect(() => {
         setUploadComplete(true);
       }
       
-      // Move to the cart section directly (no preview)
+      // Move to cart
+      setCurrentStep('cart');
       handleAddToCart();
+    }
+  };
+  
+  // Handle going back to previous step
+  const handleBack = () => {
+    if (currentStep === 'upload') {
+      setCurrentStep('style-selection');
+    } else if (currentStep === 'customize') {
+      setCurrentStep('upload');
+      setActiveSection('upload');
     }
   };
   
@@ -397,20 +431,58 @@ useEffect(() => {
     };
   }, [images]);
   
+  // Render step progress indicator
+  const renderStepProgress = () => {
+    const currentStepIndex = STEPS.findIndex(step => step.id === currentStep);
+    
+    return (
+      <div className="hidden md:flex items-center justify-center mb-10 space-x-1">
+        {STEPS.map((step, idx) => (
+          <React.Fragment key={step.id}>
+            <div className={`flex flex-col items-center ${idx <= currentStepIndex ? 'text-primary' : 'text-muted-foreground'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 border-2 ${
+                idx < currentStepIndex 
+                  ? 'bg-primary border-primary text-white' 
+                  : idx === currentStepIndex 
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-muted-foreground/30 text-muted-foreground'
+              }`}>
+                {idx < currentStepIndex ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <span className="text-sm font-medium">{idx + 1}</span>
+                )}
+              </div>
+              <span className="text-xs font-medium">{step.label}</span>
+            </div>
+            
+            {idx < STEPS.length - 1 && (
+              <div className={`w-12 h-0.5 mt-4 ${
+                idx < currentStepIndex ? 'bg-primary' : 'bg-muted-foreground/30'
+              }`}></div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  };
+  
   return (
-    <div className="min-h-screen py-12">
+    <div className="min-h-screen py-12 bg-gradient-to-b from-primary/5 to-transparent">
       <div className="container px-4 md:px-6 mx-auto">
         {/* Page Header */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight mb-2">Create Your Custom Book</h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Upload your child's artwork, customize your book details, and we'll transform them into a professional storybook.
+            Turn your child's artwork into a professionally published storybook they'll treasure forever.
           </p>
         </div>
         
+        {/* Step Progress Indicator */}
+        {renderStepProgress()}
         
         {/* Authentication Notice - Encourage login */}
-        {!user && (
+        {!user && currentStep !== 'style-selection' && (
           <div className="mb-8 p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-start gap-3">
             <div className="text-primary bg-primary/10 p-2 rounded-full">
               <Info className="h-5 w-5" />
@@ -424,324 +496,293 @@ useEffect(() => {
           </div>
         )}
         
-        {/* Mobile Section Tabs */}
-        <div className="md:hidden mb-6">
-          <div className="flex border border-border rounded-lg overflow-hidden">
-            <button
-              className={`flex-1 py-3 text-sm font-medium ${
-                activeSection === 'upload'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
-              onClick={() => setActiveSection('upload')}
-            >
-              <span className="flex items-center justify-center">
-                <Upload className="h-4 w-4 mr-1.5" />
-                Artwork
-              </span>
-            </button>
-            <button
-              className={`flex-1 py-3 text-sm font-medium ${
-                activeSection === 'customize'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
-              onClick={() => setActiveSection('customize')}
-            >
-              <span className="flex items-center justify-center">
-                <Layers className="h-4 w-4 mr-1.5" />
-                Details
-              </span>
-            </button>
-          </div>
-        </div>
-        
-        {/* Main Content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Image Uploader Section */}
-          <div className={`md:col-span-1 ${activeSection !== 'upload' && 'hidden md:block'}`}>
-            <div className="bg-white dark:bg-card p-6 rounded-lg shadow-sm border border-border">
-              <div className="flex items-center mb-4">
-                <Image className="h-5 w-5 mr-2 text-primary" />
-                <h2 className="text-xl font-semibold">Upload Your Artwork</h2>
-              </div>
-              
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6">
-                <div className="flex items-start gap-3">
-                  <Info className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <h3 className="text-sm font-medium">Image Requirements</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {formData.bookType === 'realistic' 
-                        ? 'Upload 10-15 images for your Realistic Story. The more images you provide, the richer your story will be.' 
-                        : 'Upload exactly 1 image for your Animated Story. Our AI will create an animated character from this single image.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <ProductImageSection
-                onImagesComplete={handleImagesComplete}
-                onImagesChange={setImages}
-                uploadTriggered={triggerUpload}
-                maxImages={formData.bookType === 'realistic' ? 15 : 1}
-                minImages={formData.bookType === 'realistic' ? 10 : 1}
-              />
-              
-              {/* Book Type Selection */}
-              <div className="mt-8 border-t border-border pt-6">
-                <h3 className="text-sm font-medium mb-4">Choose Book Type</h3>
-                
-                <div className="grid grid-cols-1 gap-3">
-                  <label 
-                    className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
-                      formData.bookType === 'realistic'
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="bookType"
-                      value="realistic"
-                      checked={formData.bookType === 'realistic'}
-                      onChange={() => setFormData(prev => ({ ...prev, bookType: 'realistic' }))}
-                      className="sr-only"
-                    />
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-3 ${
-                      formData.bookType === 'realistic'
-                        ? 'border-primary'
-                        : 'border-muted-foreground'
-                    }`}>
-                      {formData.bookType === 'realistic' && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-sm">Realistic Story</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Professional quality with detailed AI-enhanced illustrations (10-15 images)
-                      </p>
-                    </div>
-                    <div className="ml-auto font-bold text-sm">
-                      ₹2,499
-                    </div>
-                  </label>
-                  
-                  <label 
-                    className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
-                      formData.bookType === 'animated'
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="bookType"
-                      value="animated"
-                      checked={formData.bookType === 'animated'}
-                      onChange={() => setFormData(prev => ({ ...prev, bookType: 'animated' }))}
-                      className="sr-only"
-                    />
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-3 ${
-                      formData.bookType === 'animated'
-                        ? 'border-primary'
-                        : 'border-muted-foreground'
-                    }`}>
-                      {formData.bookType === 'animated' && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-sm">Animated Story</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Colorful animated illustrations generated from a single image
-                      </p>
-                    </div>
-                    <div className="ml-auto font-bold text-sm">
-                      ₹1,499
-                    </div>
-                  </label>
-                </div>
-              </div>
+        {/* Mobile Section Tabs - Only show for upload/customize steps */}
+        {currentStep !== 'style-selection' && currentStep !== 'cart' && (
+          <div className="md:hidden mb-6">
+            <div className="flex border border-border rounded-lg overflow-hidden">
+              <button
+                className={`flex-1 py-3 text-sm font-medium ${
+                  activeSection === 'upload'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80'
+                }`}
+                onClick={() => setActiveSection('upload')}
+              >
+                <span className="flex items-center justify-center">
+                  <Upload className="h-4 w-4 mr-1.5" />
+                  Artwork
+                </span>
+              </button>
+              <button
+                className={`flex-1 py-3 text-sm font-medium ${
+                  activeSection === 'customize'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80'
+                }`}
+                onClick={() => setActiveSection('customize')}
+              >
+                <span className="flex items-center justify-center">
+                  <Layers className="h-4 w-4 mr-1.5" />
+                  Details
+                </span>
+              </button>
             </div>
           </div>
-          
-          {/* Book Customization Form Section */}
-          <div className={`md:col-span-1 ${activeSection !== 'customize' && 'hidden md:block'}`}>
-            <div className="bg-white dark:bg-card p-6 rounded-lg shadow-sm border border-border">
-              <div className="flex items-center mb-4">
-                <Layers className="h-5 w-5 mr-2 text-primary" />
-                <h2 className="text-xl font-semibold">Customize Your Book</h2>
-              </div>
-              
-              <BookCustomizationForm
-                formData={formData}
-                setFormData={setFormData}
-                errors={formErrors}
-              />
-              
-              {/* Price and Add to Cart */}
-              <div className="mt-8 p-4 bg-muted/30 border border-border rounded-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold">
-                      {formData.bookType === 'realistic' ? 'Realistic Storybook' : 'Cartoon-Style Book'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {formData.bookType === 'realistic' 
-                        ? 'Hardcover, 20 pages, 10-15 images' 
-                        : 'Hardcover, 16 pages, cartoon style'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold">₹{BOOK_PRICES[formData.bookType].toLocaleString('en-IN')}</span>
-                    <p className="text-xs text-muted-foreground">Free shipping</p>
-                  </div>
+        )}
+        
+        {/* Style Selection Step */}
+        {currentStep === 'style-selection' && (
+          <BookStyleSelection 
+            onStyleSelect={handleStyleSelect} 
+            selectedStyle={formData.bookType}
+          />
+        )}
+        
+        {/* Upload & Customize Steps */}
+        {(currentStep === 'upload' || currentStep === 'customize') && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Image Uploader Section */}
+            <div className={`md:col-span-1 ${
+              currentStep === 'customize' && activeSection !== 'upload' && 'hidden md:block'
+            }`}>
+              <div className="bg-white dark:bg-card p-6 rounded-lg shadow-sm border border-border">
+                <div className="flex items-center mb-4">
+                  <Image className="h-5 w-5 mr-2 text-primary" />
+                  <h2 className="text-xl font-semibold">Upload Your Artwork</h2>
                 </div>
                 
-                {/* Warning about incomplete form */}
-                {(uploadError || Object.keys(formErrors).length > 0) && (
-                  <div className="mb-4 p-3 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-500 rounded-md text-sm flex items-start">
-                    <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" />
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 text-primary mt-0.5" />
                     <div>
-                      <p className="font-medium">Please complete the following:</p>
-                      <ul className="mt-1 ml-5 list-disc text-xs space-y-1">
-                        {uploadError && <li>{uploadError}</li>}
-                        {formErrors.childName && <li>Enter name</li>}
-                        {formErrors.customStory && <li>Provide your custom story</li>}
-                      </ul>
+                      <h3 className="text-sm font-medium">Image Requirements</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {formData.bookType === 'realistic' 
+                          ? 'Upload 10-15 images for your Realistic Story. The more images you provide, the richer your story will be.' 
+                          : 'Upload exactly 1 image for your Animated Story. Our AI will create an animated character from this single image.'}
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
                 
-                {/* Success Message */}
-                <AnimatePresence>
-                  {showSuccessMessage && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="mb-4 p-3 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-500 rounded-md text-sm flex items-center"
-                    >
-                      <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0" />
-                      <span>Book added to cart successfully!</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <ProductImageSection
+                  onImagesComplete={handleImagesComplete}
+                  onImagesChange={setImages}
+                  uploadTriggered={triggerUpload}
+                  maxImages={formData.bookType === 'realistic' ? 15 : 1}
+                  minImages={formData.bookType === 'realistic' ? 10 : 1}
+                />
                 
-                {/* Add to Cart Button */}
-                <button
-                  onClick={handleAddToCart}
-                  disabled={isSubmitting || showSuccessMessage || (!uploadComplete && !images.every(img => img.storageUrl || img.uploadComplete))}
-                  className="w-full h-12 flex items-center justify-center rounded-md bg-primary px-6 font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Adding to Cart...
-                    </>
-                  ) : showSuccessMessage ? (
-                    <>
-                      <Check className="mr-2 h-5 w-5" />
-                      Added to Cart
-                    </>
-                  ) : (!uploadComplete && images.some(img => !img.uploadComplete && !img.storageUrl)) ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Waiting for uploads...
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart className="mr-2 h-5 w-5" />
-                      Add to Cart • ₹{BOOK_PRICES[formData.bookType].toLocaleString('en-IN')}
-                    </>
-                  )}
-                </button>
-                
-                {/* Additional Information */}
-                <div className="mt-4 text-center">
-                  <p className="text-xs text-muted-foreground">
-                    All books include professional printing, binding, and free shipping.
-                  </p>
+                {/* Book Style Summary */}
+                <div className="mt-8 border-t border-border pt-6">
+                  <h3 className="text-sm font-medium mb-4">Your Selected Book Style</h3>
+                  
+                  <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
+                    <div className="flex items-center">
+                      <div className={`p-2 rounded-full bg-primary/20 mr-3`}>
+                        {formData.bookType === 'realistic' ? (
+                          <Sparkles className="h-5 w-5 text-primary" />
+                        ) : (
+                          <Palette className="h-5 w-5 text-primary" />
+                        )}
+                      </div>
+                      
+                      <div>
+                        <h3 className="font-medium">{formData.bookType === 'realistic' ? 'Realistic Story' : 'Animated Story'}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {formData.bookType === 'realistic'
+                            ? 'Professional quality with detailed AI-enhanced illustrations (10-15 images)'
+                            : 'Colorful animated illustrations generated from a single image'}
+                        </p>
+                      </div>
+                      
+                      <button 
+                        onClick={() => setCurrentStep('style-selection')}
+                        className="ml-auto text-sm text-primary hover:underline flex items-center"
+                      >
+                        <CornerDownLeft className="h-3 w-3 mr-1" />
+                        Change
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              
-              {/* Process Steps */}
-              <div className="mt-6">
-                <h3 className="text-sm font-medium mb-3">What happens next?</h3>
-                <ol className="relative border-l border-muted-foreground/20 pl-6 space-y-6 text-sm">
-                  <li className="relative">
-                    <div className="absolute -left-[23px] bg-primary h-4 w-4 rounded-full"></div>
-                    <h4 className="font-medium">Order Processing</h4>
-                    <p className="text-muted-foreground mt-1">
-                      After checkout, our AI system will process your artwork and generate a custom story.
+            </div>
+            
+            {/* Book Customization Form Section */}
+            <div className={`md:col-span-1 ${
+              currentStep === 'upload' && activeSection !== 'customize' && 'hidden md:block'
+            }`}>
+              <div className="bg-white dark:bg-card p-6 rounded-lg shadow-sm border border-border">
+                <div className="flex items-center mb-4">
+                  <Layers className="h-5 w-5 mr-2 text-primary" />
+                  <h2 className="text-xl font-semibold">Customize Your Book</h2>
+                </div>
+                
+                <BookCustomizationForm
+                  formData={formData}
+                  setFormData={setFormData}
+                  errors={formErrors}
+                />
+                
+                {/* Price and Add to Cart */}
+                <div className="mt-8 p-4 bg-muted/30 border border-border rounded-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-semibold">
+                        {formData.bookType === 'realistic' ? 'Realistic Storybook' : 'Animated Storybook'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {formData.bookType === 'realistic' 
+                          ? 'Hardcover, 20 pages, 10-15 images' 
+                          : 'Hardcover, 16 pages, cartoon style'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-2xl font-bold">₹{BOOK_PRICES[formData.bookType].toLocaleString('en-IN')}</span>
+                      <p className="text-xs text-muted-foreground">Free shipping</p>
+                    </div>
+                  </div>
+                  
+                  {/* Warning about incomplete form */}
+                  {(uploadError || Object.keys(formErrors).length > 0) && (
+                    <div className="mb-4 p-3 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-500 rounded-md text-sm flex items-start">
+                      <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">Please complete the following:</p>
+                        <ul className="mt-1 ml-5 list-disc text-xs space-y-1">
+                          {uploadError && <li>{uploadError}</li>}
+                          {formErrors.childName && <li>Enter name</li>}
+                          {formErrors.customStory && <li>Provide your custom story</li>}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Success Message */}
+                  <AnimatePresence>
+                    {showSuccessMessage && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mb-4 p-3 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-500 rounded-md text-sm flex items-center"
+                      >
+                        <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+                        <span>Book added to cart successfully!</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
+                  {/* Add to Cart Button */}
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={isSubmitting || showSuccessMessage || (!uploadComplete && !images.every(img => img.storageUrl || img.uploadComplete))}
+                    className="w-full h-12 flex items-center justify-center rounded-md bg-primary px-6 font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Adding to Cart...
+                      </>
+                    ) : showSuccessMessage ? (
+                      <>
+                        <Check className="mr-2 h-5 w-5" />
+                        Added to Cart
+                      </>
+                    ) : (!uploadComplete && images.some(img => !img.uploadComplete && !img.storageUrl)) ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-primary-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Waiting for uploads...
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="mr-2 h-5 w-5" />
+                        Add to Cart • ₹{BOOK_PRICES[formData.bookType].toLocaleString('en-IN')}
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Additional Information */}
+                  <div className="mt-4 text-center">
+                    <p className="text-xs text-muted-foreground">
+                      All books include professional printing, binding, and free shipping.
                     </p>
-                  </li>
-                  <li className="relative">
-                    <div className="absolute -left-[23px] bg-muted-foreground/40 h-4 w-4 rounded-full"></div>
-                    <h4 className="font-medium">Book Production</h4>
-                    <p className="text-muted-foreground mt-1">
-                      Your storybook will be professionally printed and bound with high-quality materials.
-                    </p>
-                  </li>
-                  <li className="relative">
-                    <div className="absolute -left-[23px] bg-muted-foreground/40 h-4 w-4 rounded-full"></div>
-                    <h4 className="font-medium">Shipping</h4>
-                    <p className="text-muted-foreground mt-1">
-                      The finished book will be carefully packaged and shipped to your door within 7-10 business days.
-                    </p>
-                  </li>
-                </ol>
-              </div>
-              
-              {/* Learn More */}
-              <div className="mt-8 p-4 border border-border rounded-lg bg-muted/10">
-                <h3 className="text-sm font-medium mb-2">Questions about the process?</h3>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Learn more about how we create your custom storybooks and what makes them special.
-                </p>
-                <button className="inline-flex items-center text-sm text-primary hover:underline">
-                  Learn about our process
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </button>
+                  </div>
+                </div>
+                
+                {/* Process Steps */}
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium mb-3">What happens next?</h3>
+                  <ol className="relative border-l border-muted-foreground/20 pl-6 space-y-6 text-sm">
+                    <li className="relative">
+                      <div className="absolute -left-[23px] bg-primary h-4 w-4 rounded-full"></div>
+                      <h4 className="font-medium">Order Processing</h4>
+                      <p className="text-muted-foreground mt-1">
+                        After checkout, our AI system will process your artwork and generate a custom story.
+                      </p>
+                    </li>
+                    <li className="relative">
+                      <div className="absolute -left-[23px] bg-muted-foreground/40 h-4 w-4 rounded-full"></div>
+                      <h4 className="font-medium">Book Production</h4>
+                      <p className="text-muted-foreground mt-1">
+                        Your storybook will be professionally printed and bound with high-quality materials.
+                      </p>
+                    </li>
+                    <li className="relative">
+                      <div className="absolute -left-[23px] bg-muted-foreground/40 h-4 w-4 rounded-full"></div>
+                      <h4 className="font-medium">Shipping</h4>
+                      <p className="text-muted-foreground mt-1">
+                        The finished book will be carefully packaged and shipped to your door within 7-10 business days.
+                      </p>
+                    </li>
+                  </ol>
+                </div>
+                
+                {/* Learn More */}
+                <div className="mt-8 p-4 border border-border rounded-lg bg-muted/10">
+                  <h3 className="text-sm font-medium mb-2">Questions about the process?</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Learn more about how we create your custom storybooks and what makes them special.
+                  </p>
+                  <button className="inline-flex items-center text-sm text-primary hover:underline">
+                    Learn about our process
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
         
-        {/* Mobile Navigation Buttons */}
-        <div className="md:hidden flex justify-between mt-8">
-          {activeSection === 'upload' ? (
-            <div></div>
-          ) : (
+        {/* Navigation Buttons */}
+        {(currentStep === 'upload' || currentStep === 'customize') && (
+          <div className="flex justify-between mt-8">
             <button
-              onClick={() => {
-                setActiveSection('upload');
-              }}
-              className="px-4 py-2 border border-input rounded-md text-sm font-medium"
+              onClick={handleBack}
+              className="px-6 py-2.5 border border-input rounded-md text-sm font-medium hover:bg-muted/50 transition-colors"
             >
-              Previous
+              Back
             </button>
-          )}
-          
-          <button
-            onClick={activeSection === 'customize' ? handleAddToCart : handleContinue}
-            disabled={isSubmitting || (!uploadComplete && !images.every(img => img.storageUrl || img.uploadComplete))}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium disabled:opacity-50 disabled:pointer-events-none"
-            data-upload-trigger={activeSection === 'upload' ? 'true' : undefined}
-          >
-            {isSubmitting ? 'Adding...' : 
-             ((!uploadComplete && images.some(img => !img.uploadComplete && !img.storageUrl)) ? 'Uploading...' : 
-              activeSection === 'customize' ? 'Add to Cart' : 'Continue')}
-          </button>
-        </div>
+            
+            <button
+              onClick={handleContinue}
+              disabled={isSubmitting || (!uploadComplete && !images.every(img => img.storageUrl || img.uploadComplete))}
+              className="px-6 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium disabled:opacity-50 disabled:pointer-events-none transition-colors hover:bg-primary/90"
+              data-upload-trigger={currentStep === 'upload' ? 'true' : undefined}
+            >
+              {isSubmitting ? 'Processing...' : 
+              ((!uploadComplete && images.some(img => !img.uploadComplete && !img.storageUrl)) ? 'Uploading...' : 
+              currentStep === 'customize' ? 'Add to Cart' : 'Continue')}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

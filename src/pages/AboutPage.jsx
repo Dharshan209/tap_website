@@ -82,7 +82,7 @@ const AboutPage = () => {
             >
               <div className="aspect-square rounded-2xl overflow-hidden shadow-xl">
                 <img 
-                  src="/assets/images/about-story.png" 
+                  src="/assets/images/About.png" 
                   alt="Children creating art" 
                   className="w-full h-full object-cover"
                   onError={(e) => {

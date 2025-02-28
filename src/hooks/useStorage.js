@@ -226,7 +226,7 @@ export const useStorage = () => {
    * @param {Object} metadata - Optional metadata
    * @param {function} onProgress - Optional overall progress callback
    * @param {function} onFileProgress - Optional per-file progress callback
-   * @param {number} concurrency - Maximum number of concurrent uploads (default: 3)
+   * @param {number} concurrency - Maximum number of concurrent uploads (default: 4)
    * @returns {Promise<Array<Object>>} - Array of upload results
    */
   const uploadMultipleFiles = useCallback(async (
@@ -235,7 +235,7 @@ export const useStorage = () => {
     metadata = {}, 
     onProgress = null,
     onFileProgress = null,
-    concurrency = 3
+    concurrency = 4
   ) => {
     if (!files || !files.length) {
       const error = new Error('No files provided');

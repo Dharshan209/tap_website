@@ -6,31 +6,31 @@ import { motion } from 'framer-motion';
 const featuredBooks = [
   {
     id: 'book1',
-    title: "Emma's Space Adventure",
+    title: "Starry Night",
     theme: 'Space',
-    price: 499,
-    image: '/assets/images/f2.png',
+    price: 599,
+    image: '/assets/images/f1.png',
   },
   {
     id: 'book2',
-    title: "Noah's Dinosaur Discovery",
+    title: "The Lost Dino Friend",
     theme: 'Dinosaurs',
-    price: 499,
-    image: '/assets/images/f3.png',
+    price: 599,
+    image: '/assets/images/f2.png',
   },
   {
     id: 'book3',
-    title: "Lily's Magical Forest",
+    title: "Enchanted Garden",
     theme: 'Fantasy',
-    price: 499,
-    image: '/assets/images/f4.png',
+    price: 599,
+    image: '/assets/images/f3.png',
   },
   {
     id: 'book4',
-    title: "Max's Superhero Journey",
+    title: "Super Dad",
     theme: 'Superheroes',
-    price: 499,
-    image: '/assets/images/f5.png',
+    price: 599,
+    image: '/assets/images/f4.png',
   },
 ];
 

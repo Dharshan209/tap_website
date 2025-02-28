@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { 
   User, Calendar, Eye, Package, Filter, RefreshCw, 
   AlertCircle, ChevronLeft, ChevronRight, Clipboard, 
-  Download, MoreHorizontal
+  Download, MoreHorizontal, X
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import OrderStatusDropdown from './OrderStatusDropdown';

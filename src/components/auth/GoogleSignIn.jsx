@@ -11,15 +11,13 @@ const GoogleSignIn = ({ onSuccess, onError, buttonText = "Sign in with Google" }
       const user = await signInWithGoogle();
       console.log("Google sign-in successful", user);
 
-      // Add a small delay to ensure Firebase auth state has updated
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess(user);
-        } else {
-          // Default navigation if no success handler provided
-          window.location.href = "/";
-        }
-      }, 500);
+      // Immediately call onSuccess without waiting
+      if (onSuccess) {
+        onSuccess(user);
+      } else {
+        // Default navigation if no success handler provided
+        window.location.href = "/";
+      }
     } catch (error) {
       console.error("Google sign-in failed:", error);
       if (onError) {

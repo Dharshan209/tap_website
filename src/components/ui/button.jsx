@@ -125,9 +125,8 @@ const Button = React.forwardRef(
           size, 
           glow, 
           rounded, 
-          animation,
-          className 
-        }))}
+          animation
+        }), className)}
         ref={ref}
         disabled={isLoading || props.disabled}
         {...props}

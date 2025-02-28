@@ -8,21 +8,48 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
 
-// Using lazy loading for better performance
-const HomePage = lazy(() => import('./pages/HomePage'));
-const ProductPage = lazy(() => import('./pages/ProductPage'));
-const CartPage = lazy(() => import('./pages/CartPage'));
-const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
-const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const SignupPage = lazy(() => import('./pages/SignupPage'));
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
-const AboutPage = lazy(() => import('./pages/AboutPage'));
-const ContactPage = lazy(() => import('./pages/ContactPage'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
-const LegalPage = lazy(() => import('./pages/LegalPage'));
+// Using lazy loading for better performance (with error handling)
+const lazyLoad = (importFn) => {
+  return lazy(() => 
+    importFn().catch(error => {
+      console.error('Error loading module:', error);
+      // Return a minimal module that renders an error message
+      return { 
+        default: () => (
+          <div className="flex items-center justify-center min-h-[50vh] text-center p-8">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Loading Error</h2>
+              <p className="text-gray-600 mb-4">
+                We're having trouble loading this page. Please try refreshing.
+              </p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+              >
+                Refresh Page
+              </button>
+            </div>
+          </div>
+        )
+      };
+    })
+  );
+};
+
+const HomePage = lazyLoad(() => import('./pages/HomePage'));
+const ProductPage = lazyLoad(() => import('./pages/ProductPage'));
+const CartPage = lazyLoad(() => import('./pages/CartPage'));
+const CheckoutPage = lazyLoad(() => import('./pages/CheckoutPage'));
+const OrderConfirmationPage = lazyLoad(() => import('./pages/OrderConfirmationPage'));
+const ProfilePage = lazyLoad(() => import('./pages/ProfilePage'));
+const AdminDashboard = lazyLoad(() => import('./pages/AdminDashboard'));
+const LoginPage = lazyLoad(() => import('./pages/LoginPage'));
+const SignupPage = lazyLoad(() => import('./pages/SignupPage'));
+const ForgotPasswordPage = lazyLoad(() => import('./pages/ForgotPasswordPage'));
+const AboutPage = lazyLoad(() => import('./pages/AboutPage'));
+const ContactPage = lazyLoad(() => import('./pages/ContactPage'));
+const NotFoundPage = lazyLoad(() => import('./pages/NotFoundPage'));
+const LegalPage = lazyLoad(() => import('./pages/LegalPage'));
 
 // Auth context for Firebase Authentication
 import { AuthProvider } from './hooks/useAuth';
@@ -79,6 +106,7 @@ function App() {
                       {/* Public Routes */}
                       <Route path="/" element={<HomePage />} />
                       <Route path="/product" element={<ProductPage />} />
+                      <Route path="/product/:productId" element={<ProductPage />} />
                       <Route path="/cart" element={<CartPage />} />
                       <Route path="/checkout" element={<CheckoutPage />} />
                       <Route path="/order-confirmation/:orderId" element={<OrderConfirmationPage />} />
@@ -92,6 +120,7 @@ function App() {
                       
                       {/* Protected Admin Route */}
                       <Route path="/admin" element={<AdminDashboard />} />
+                      <Route path="/admin/*" element={<AdminDashboard />} />
                       
                       {/* 404 Route */}
                       <Route path="*" element={<NotFoundPage />} />

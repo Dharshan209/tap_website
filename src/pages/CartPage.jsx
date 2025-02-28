@@ -85,11 +85,23 @@ const CartPage = () => {
                     <div key={item.id} className="flex flex-col sm:flex-row items-start sm:items-center pb-6 border-b border-border last:border-0 last:pb-0">
                       {/* Item Image */}
                       <div className="h-32 w-24 bg-muted rounded overflow-hidden mr-4 flex-shrink-0">
-                        {item.coverImage ? (
+                        {item.coverImage && !String(item.coverImage).startsWith('blob:') ? (
                           <img
                             src={item.coverImage}
                             alt={item.childName ? `${item.childName}'s Book` : 'Custom Book'}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              console.log('Image failed to load:', e.target.src);
+                              e.target.onerror = null;
+                              e.target.style.display = 'none';
+                              // Create a fallback element
+                              const fallback = document.createElement('div');
+                              fallback.className = "w-full h-full flex items-center justify-center bg-muted";
+                              fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg>';
+                              if (e.target.parentNode) {
+                                e.target.parentNode.appendChild(fallback);
+                              }
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-muted">

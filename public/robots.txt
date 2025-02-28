@@ -5,10 +5,13 @@ Allow: /
 # Sitemap location
 Sitemap: https://tapyourstory.in/sitemap.xml
 
-# Disallow admin routes 
+# Disallow admin routes and private pages
 Disallow: /admin
 Disallow: /admin/*
 Disallow: /profile
 Disallow: /profile/*
 Disallow: /checkout
 Disallow: /order-confirmation/*
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
